@@ -115,3 +115,19 @@ Daemonset은 Replicasets과 유사하게 여러 POD를 배포할 수 있게 해�
 
 쿠버네티스 v1.12까지는 DaemonSet의 POD에는 `nodeName` 속성에 각 노드가 명시 되었지만 그 이후 버전부터는 NodeAffinity를 사용하고 있다.   
 
+
+## Multiple Scheduler 
+쿠버네티스는 확장성이 뛰어나다. 사용자가 직접 스케줄러 프로그램을 만들어서 기본 스케줄러와 함께 실행되도록 할 수 있다.  
+kubeadm으로 클러스터를 구성했다면 `/etc/kubenetes/manifests/` 폴더에 Static POD로 실행될 kube-scheduler 매니페이스가 존재한다.  
+
+가장 쉽게 커스텀 스케줄러를 만들기 위한 방법은 기존 kube-scheduler Static POD 매니페스트를 복사해서 POD의 name과 kube-scheduler 커맨드 옵션을 추가하는 방법이다.  
+
+여러 마스터 노드에서 각 실행되는 스케줄러에 리더 선정을 위해 `--leader-elect` 옵션을 사용할 수 있다.  
+이 옵션을 사용해서 여러 마스터 노드에 동일한 스케줄러가 실행 중일 때 반드시 1개만 리더로 활성화되어야 한다.  
+그리고 `--lock-object-name` 옵션은 리더 선택 프로세스 중에 새로운 커스텀 스케줄러를 기본값과 구별하기 위해 사용된다.  
+
+커스텀 스케줄러는 POD나 Deployment로 정의할 수 있다.  
+그리고 만약 어떤 POD에서 특정 스케줄러만을 지정하려면 POD spec에 `schedulerName` 속성을 이용하면 된다.  
+
+[https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/](https://kubernetes.io/docs/tasks/extend-kubernetes/configure-multiple-schedulers/)
+
