@@ -251,3 +251,52 @@ kubectl get csr john -o yaml
 쿠버네티스 클러스터의 마스터 플레인 구성 요소 중 모든 Certificate 관련 작업을 수행하는 컴포넌트는 Controller Manager이다.   
 
 
+## Image Security
+How do you pass the credentials to the docker runtime on the worker node for that.  
+We first create a secret object with the credentials in it.  
+The Secret is of type Docker registry and we name it `regcred`.  
+We then specify the secret inside our pod definition file under the `imagePullSecret` section when the pod created kubernetes or the kubelets on the worker node uses the credentials from the secret to pull images well.  
+
+
+#### Securty Contexts
+도커 컨테이너를 실행할 때 `cap-add` 파라미터로 리눅스 Capability를 추가 할 수 있다.   
+쿠버네티스의 POD는 컨테이너를 캡슐화 한 것이기 때문에 동일하게 이 설정을 POD 레벨과 컨테이너 레벨에서 적용할 수 있다.   
+만약 POD 레벨과 컨테이너 레벨 모두 설정된 경우 컨테이너 레벨의 설정이 우선시 된다.   
+
+POD 매니페스트 상에서 `spec` 섹션에 `securityContext`를 추가한다.   
+컨테이너 레벨에 설정하려면 `securityContext`섹션을 `containers` 아래 해당하는 컨테이너 설정으로 이동한다.   
+
+ `capabilities` 설정은 오직 컨테이너 레벨에서만 사용할 수 있다.  
+
+
+#### Network Policies
+Network Policy는 POD 내부로 들어오는 Ingress 트래픽과 외부로 나가는 Egress 트래픽을 제안할 수 있는 쿠버네티스의 네임스페이스에 속하는 오브젝트이다.  
+쿠버네티스 안에서 모든 네트워크 통신은 열려있지만 Network Policy가 POD에 적용되는 경우 허용되는 트래픽 설정만 통신이 가능하다.   
+Network Policy는 ReplicaSet이나 Service처럼 Label을 통해 대상 POD를 지정할 수 있다.   
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+	name: db-policy
+spec:
+	podSelector:
+	  matchLabels:
+	    role: db
+	policyTypes:
+	- Ingress
+	ingress:
+	- from:
+	  - podSelector:
+        matchLabels:
+          name: api-pod
+    ports:
+    - protocol: TCP
+      port: 3306
+```
+
+Network Policy는 쿠버네티스 클러스터에서 사용하는 네트워크 솔루션을 통해 동작한다.  
+`Kube-router`, `Calico`, `Romana`, `Weave-net`에서는 Network Policy가 적용되며, `Flannel`은 제공하지 않는다.  
+`Flannel`을 사용하고 있더라도 Network Policy 오브젝트를 생성하는 것은 가능하지만 적용되지는 않는다.  
+
+
