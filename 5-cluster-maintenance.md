@@ -70,3 +70,58 @@ systemctl restart kubelet
 
 모두 완료된 뒤 해당 노드에 `uncordon`으로 해당 노드에 다시 스케줄링이 될 수 있도록 설정한다. 
 
+
+## Backup & Restore
+쿠버네티스에 있는 모든 리소스 데이터를 백업하는 가장 간단한 방법은 아래 명령어를 이용해서 한꺼번에 YAML 파일로 만드는 것이다.  
+```shell
+kubectl get all --all-namespaces -o yaml > all-deploy-services.yaml
+```
+
+#### ETCD 백업과 복구
+쿠버네티스의 모든 리소스는 ETCD에 저장된다. 주기적으로 ETCD를 백업하는 프로세스를 둔다면 장애 상황에 더 쉽게 대응할 수 있을 것이다.  
+
+- ETCD Snapshot
+```shell
+# 스냅샷 생성 
+ETCDCTL_API=3 etcdctl snapshot save snapshot.db
+
+# 스냅샷 상태 확인
+ETCDCTL_API=3 etcdctl snapshot status snapshot.db
+```
+
+> 쿠버네티스 공식 사이트에는 ETCD를 백업하고 복구하는 방법이 자세하게 나와있지 않다. 따라서 아래 명령어는 암기하도록 하자!
+
+- Backup - ETCD
+```shell
+ETCDCTL_API=3 etcdctl \
+  --endpoints=https://[127.0.0.1]:2379 \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  --cert=/etc/kubernetes/pki/etcd/server.crt \
+  --key=/etc/kubernetes/pki/etcd/server.key \
+  snapshot save /tmp/snapshot-pre-boot.db
+```
+
+- Restore - ETCD Snapshot
+```shell
+ETCDCTL_API=3 etcdctl \
+    --endpoints=https://[127.0.0.1]:2379 \
+    --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+    --cert=/etc/kubernetes/pki/etcd/server.crt \
+    --key=/etc/kubernetes/pki/etcd/server.key \
+    --name=master \
+    --data-dir /var/lib/etcd-from-backup \
+    --initial-cluster-token=etcd-cluster-1 \
+    --initial-cluster=master=https://127.0.0.1:2380 \
+    --initial-advertise-peer-urls=https://127.0.0.1:2380 \
+    snapshot restore /tmp/snapshot-pre-boot.db
+```
+
+- ETCD POD 재시작
+kubeadm으로 클러스터를 구성하는 경우 기본적으로 ETCD가 Static POD로 실행된다.  
+따라서 `/etc/kubernetes/manifests/etcd.yaml` 파일에 ETCD POD 명세가 존재한다.  
+위 복구 과정에서 추가한 옵션 중 `--data-dir`과 `--initial-cluster-token`을 etcd 컨테이너 command 옵션에 추가 또는 수정해줘야 한다.  
+그리고 `--data-dir`이 변경되었기 때문에 해당 폴더에 대한 volumes와 volumeMounts 부분도 수정해야 한다.  (사실 volumeMounts의 hostPath.path만 수정하면 된다)  
+
+참고: [https://github.com/mmumshad/kubernetes-the-hard-way/blob/master/practice-questions-answers/cluster-maintenance/backup-etcd/etcd-backup-and-restore.md](https://github.com/mmumshad/kubernetes-the-hard-way/blob/master/practice-questions-answers/cluster-maintenance/backup-etcd/etcd-backup-and-restore.md)
+
+
